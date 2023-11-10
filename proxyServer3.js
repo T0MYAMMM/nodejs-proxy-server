@@ -1,68 +1,79 @@
 const http = require('http');
-//const url = require('url');
 const net = require('net'); 
+const url = require('url');
 
 const server = http.createServer((req, res) => {
-  const parsedUrl = url.parse(req.url);
+    const parsedUrl = url.parse(req.url);
 
-  console.log('Received request for:', req.url);
+    console.log('Received request for:', req.url);
 
-  // Forward HTTP requests
-  if (parsedUrl.protocol === 'http:') {
-    const options = {
-      hostname: parsedUrl.hostname,
-      port: parsedUrl.port || 80,
-      path: parsedUrl.path, 
-      method: req.method,
-      headers: req.headers
-    };
+    // Forward HTTP requests
+    if (parsedUrl.protocol === 'http:') {
+            const options = {
+                hostname: parsedUrl.hostname,
+                port: parsedUrl.port || 80,
+                path: parsedUrl.path, 
+                method: req.method,
+                headers: req.headers
+            };
 
-    const proxyReq = http.request(options, (proxyRes) => {
-      console.log('Proxying HTTP request to:', parsedUrl.hostname);
-      res.writeHead(proxyRes.statusCode, proxyRes.headers);
-      proxyRes.pipe(res);
-    });
+        const proxyReq = http.request(options, (proxyRes) => {
+            let modified = false;
+            proxyRes.on('data', (chunk) => {
+                if (chunk.toString().toUpperCase().includes('HTML')) {
+                    modified = true;
+                }
+                res.write(chunk);
+            });
 
-    proxyReq.on('error', (err) => {
-      console.error('HTTP request error:', err.message);
-      res.writeHead(500);
-      res.end('Proxy encountered an error');
-    });
+            proxyRes.on('end', () => {
+                if (modified) {
+                    res.write('NODEJS');
+                    console.log('HTML substring found and modified.');
+                } else {
+                    console.log('HTML substring is missing!');
+                }
+                res.end();
+            });
+            res.writeHead(proxyRes.statusCode, proxyRes.headers);
+            console.log('Proxying HTTP request to:', parsedUrl.hostname);
+        });
 
-    req.pipe(proxyReq);
+        proxyReq.on('error', (err) => {
+            console.error('HTTP request error:', err.message);
+            res.writeHead(500);
+            res.end('Proxy encountered an error');
+        });
+        req.pipe(proxyReq);
+    }
+});
 
-  // Forward HTTPS requests    
-  } else if (parsedUrl.protocol === 'https:') {
-    console.log('Received HTTPS request for:', parsedUrl.hostname);
+server.on('connect', (req, cltSocket, head) => {
+    console.log('Received CONNECT request for:', req.url);
 
-    // Create TCP connection
-    const proxySocket = net.connect(443, parsedUrl.hostname, () => {
-      console.log('TCP connection established with', parsedUrl.hostname);
-      proxySocket.write([
-        'CONNECT ' + parsedUrl.hostname + ':' + 443 + ' HTTP/1.1',
-        'Host: ' + parsedUrl.hostname,
-        '\r\n\r\n'
-      ].join('\r\n'));
-      
-      proxySocket.pipe(res);
-      res.pipe(proxySocket); 
+    // Parsing hostname dan port dari request
+    const [hostname, port] = req.url.split(':');
+
+    // Menangani request HTTPS
+    const proxySocket = net.connect(port || 443, hostname, () => {
+        console.log('TCP connection established with', hostname);
+        cltSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+        proxySocket.write(head);
+        proxySocket.pipe(cltSocket);
+        cltSocket.pipe(proxySocket);
     });
 
     proxySocket.on('error', (err) => {
-      console.error('TCP connection error:', err.message);
-      res.writeHead(500);
-      res.end('Proxy encountered an error');
+        console.error('TCP connection error:', err.message);
     });
 
     proxySocket.on('close', () => {
-      console.log('TCP connection closed');
+        console.log('TCP connection closed');
     });
 
-  } else {
-    console.log('Unsupported protocol for:', req.url);
-    res.writeHead(400);
-    res.end('Unsupported protocol');
-  }
+    cltSocket.on('error', (err) => {
+        console.error('Client socket error:', err.message);
+    });
 });
 
 server.listen(3456, () => {
