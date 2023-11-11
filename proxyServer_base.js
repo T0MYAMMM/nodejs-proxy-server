@@ -4,10 +4,7 @@ const url = require('url');
 
 const server = http.createServer((req, res) => {
     const parsedUrl = url.parse(req.url);
-
     console.log('Received request for:', req.url);
-
-    // Forward HTTP requests
     if (parsedUrl.protocol === 'http:') {
         const options = {
             hostname: parsedUrl.hostname,
@@ -16,26 +13,20 @@ const server = http.createServer((req, res) => {
             method: req.method,
             headers: req.headers
         };
-
         const proxyReq = http.request(options, (proxyRes) => {
             let chunks = [];
-        
             proxyRes.on('data', (chunk) => {
                 chunks.push(chunk);
             });
-        
             proxyRes.on('end', () => {
                 let body = Buffer.concat(chunks);
                 let bodyString = body.toString();
-        
                 if (bodyString.toLowerCase().includes('html')) {
                     bodyString += 'NODEJS';
                     console.log('HTML substring found and modified.');
                 } else {
                     console.log('HTML substring is missing!');
                 }
-                    
-                    // Update the content-length
                 const updatedHeaders = {
                     ...proxyRes.headers,
                     'content-length': Buffer.byteLength(bodyString)
@@ -44,7 +35,6 @@ const server = http.createServer((req, res) => {
                 res.end(bodyString);
             });
         });
-
         proxyReq.on('error', (err) => {
             console.error('HTTP request error:', err.message);
             res.writeHead(500);
@@ -56,29 +46,20 @@ const server = http.createServer((req, res) => {
 
 server.on('connect', (req, cltSocket, head) => {
     console.log('Received CONNECT request for:', req.url);
-
-    // Parsing hostname dan port dari request
     const [hostname, port] = req.url.split(':');
-
-    // Menangani request HTTPS
     const proxySocket = net.connect(port || 443, hostname, () => {
         console.log('TCP connection established with', hostname);
-        cltSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
-
-        
+        cltSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');        
         proxySocket.write(head);
         proxySocket.pipe(cltSocket);
         cltSocket.pipe(proxySocket);
     });
-
     proxySocket.on('error', (err) => {
         console.error('TCP connection error:', err.message);
     });
-
     proxySocket.on('close', () => {
         console.log('TCP connection closed');
     });
-
     cltSocket.on('error', (err) => {
         console.error('Client socket error:', err.message);
     });
