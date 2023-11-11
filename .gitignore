@@ -1,0 +1,4 @@
+# Ignore key and certificates
+*.pem
+*.srl
+*.der
