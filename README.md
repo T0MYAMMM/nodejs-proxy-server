@@ -87,14 +87,15 @@ openssl req -x509 -new -nodes -key rootCA-key.pem -sha256 -days 1024 -out rootCA
 Note: These steps are only for local testing and development purposes. For production or public use, it's recommended to use certificates from a trusted Certificate Authority.
 
 ## Note on HTTPS Interception
-- The HTTPS interception involves creating a local SSL interception server.
+- The HTTPS interception involves creating a local SSL interception server. SSL Interception in this proxy server involves decrypting and inspecting HTTPS traffic.
 - The -k option in curl is used to bypass SSL certificate validation for **testing purposes**.
 - Ensure that you have the rootCA-key.pem and rootCA-cert.pem files in the root directory for SSL interception to work correctly.
 
 ## Implementation Details
 - The proxy server listens on port 3456 for incoming HTTP and HTTPS requests.
-- For HTTP requests, it forwards the request and modifies the response if it contains 'HTML'.
-- For HTTPS requests, it uses a separate SSL interception server running on port 3457.
+- The proxy server handles HTTP and HTTPS requests differently due to their inherent nature:
+  1. For HTTP requests (simpler to handle as they are unencrypted), it forwards the request and modifies the response if it contains 'HTML'.
+  2. For HTTPS requests (involved encrypted data, necessitating SSL interception), it uses a separate SSL interception server running on port 3457. HTTPS requests require additional steps for decryption and re-encryption, ensuring the integrity and security of the data while allowing inspection and modification.
 - The response modification logic appends 'NODEJS' to any response containing 'HTML'.
 
 ## Constraints and Assumptions
